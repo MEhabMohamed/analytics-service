@@ -1,0 +1,21 @@
+# Local dev aids — not part of production binaries
+play/
+
+# Local environment config
+.env
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+/api
+/backfill-aggs
+
+# Go test / coverage artifacts
+*.test
+*.out
+coverage.txt
+
