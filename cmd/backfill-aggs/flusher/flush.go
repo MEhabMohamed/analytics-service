@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 
 	"quickbite/analytics-service/app/analytics/repository"
 	"quickbite/analytics-service/cmd/backfill-aggs/pgreader"

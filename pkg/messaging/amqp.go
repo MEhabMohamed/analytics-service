@@ -83,11 +83,21 @@ func (b *AMQPBroker) DeclareTopology(top Topology) error {
 		return fmt.Errorf("declare exchange %s: %w", top.Exchange, err)
 	}
 
-	// 2. Dead-letter exchange & queue if configured
+	// 2. Dead-letter exchange & queue if configured.
+	// Uses "topic" (with "#" wildcard binding) to match core-service / order-service DLX declarations,
+	// falling back to "fanout" on a fresh channel if the DLX was previously created as fanout.
 	queueArgs := amqp.Table{}
 	if top.DeadLetterExchange != "" {
-		if err := ch.ExchangeDeclare(top.DeadLetterExchange, "fanout", true, false, false, false, nil); err != nil {
-			return fmt.Errorf("declare dlx %s: %w", top.DeadLetterExchange, err)
+		if err := ch.ExchangeDeclare(top.DeadLetterExchange, "topic", true, false, false, false, nil); err != nil {
+			// A 406 PRECONDITION_FAILED closes `ch`; re-open a channel and retry as "fanout".
+			ch, err = b.conn.Channel()
+			if err != nil {
+				return fmt.Errorf("amqp reopen channel for dlx %s: %w", top.DeadLetterExchange, err)
+			}
+			defer ch.Close()
+			if err := ch.ExchangeDeclare(top.DeadLetterExchange, "fanout", true, false, false, false, nil); err != nil {
+				return fmt.Errorf("declare dlx %s: %w", top.DeadLetterExchange, err)
+			}
 		}
 		queueArgs["x-dead-letter-exchange"] = top.DeadLetterExchange
 
@@ -95,7 +105,7 @@ func (b *AMQPBroker) DeclareTopology(top Topology) error {
 			if _, err := ch.QueueDeclare(top.DeadLetterQueue, true, false, false, false, nil); err != nil {
 				return fmt.Errorf("declare dlq %s: %w", top.DeadLetterQueue, err)
 			}
-			if err := ch.QueueBind(top.DeadLetterQueue, "", top.DeadLetterExchange, false, nil); err != nil {
+			if err := ch.QueueBind(top.DeadLetterQueue, "#", top.DeadLetterExchange, false, nil); err != nil {
 				return fmt.Errorf("bind dlq %s: %w", top.DeadLetterQueue, err)
 			}
 		}

@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"quickbite/analytics-service/app/analytics"
 	"quickbite/analytics-service/app/analytics/entity"
@@ -52,7 +52,7 @@ func (r *RestaurantDayRepo) UpsertOrderDelivered(
 			"cod_payment_sum":      int64(0),
 		},
 	}
-	_, err := r.coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	_, err := r.coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -99,7 +99,7 @@ func (r *RestaurantDayRepo) UpsertOrderStatusFailure(
 			"delivery_ms_count":    int64(0),
 		},
 	}
-	_, err := r.coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	_, err := r.coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -169,15 +169,15 @@ func (r *RestaurantDayRepo) AggregateActiveRestaurants(
 		return 0, nil, err
 	}
 
-	// Distinct restaurant_ids across the full range
-	distinctVals, err := r.coll.Distinct(ctx, "restaurant_id", bson.M{
+	// Distinct restaurant_ids across the full range (mongo-driver v2 returns *mongo.DistinctResult)
+	var distinctVals []int64
+	if err := r.coll.Distinct(ctx, "restaurant_id", bson.M{
 		"date": bson.M{
 			"$gte": fromDate,
 			"$lte": toDate,
 		},
 		"orders_count": bson.M{"$gt": 0},
-	})
-	if err != nil {
+	}).Decode(&distinctVals); err != nil {
 		return 0, nil, err
 	}
 

@@ -1,4 +1,4 @@
-// Package mongo provides a pure connection/disconnection wrapper over the official MongoDB driver.
+// Package mongo provides a pure connection/disconnection wrapper over the official MongoDB v2 driver.
 //
 // TS vs Go Syntax Note:
 //   - In `order-service` (`lib/knex/knex.ts`), database connections are managed as module-level
@@ -6,6 +6,7 @@
 //   - In Go's `pkg/` layer, global state and environment imports are forbidden. `Connect` takes
 //     explicit `(ctx, uri, dbName)` arguments and returns `(*Client, error)` so `lib/boot/boot.go`
 //     owns the lifecycle and closes the pool via `defer mongoClient.Disconnect(shutCtx)`.
+//   - Uses `go.mongodb.org/mongo-driver/v2/mongo` (`mongo.Connect(opts)` + `client.Ping(ctx, readpref.Primary())`).
 package mongo
 
 import (
@@ -13,12 +14,12 @@ import (
 	"fmt"
 	"time"
 
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 )
 
-// Client wraps the official mongo.Client and target Database handle.
+// Client wraps the official v2 mongo.Client and target Database handle.
 // Strict layering: this package knows how to connect and disconnect ONLY.
 // It contains zero collection names or application-specific knowledge.
 type Client struct {
@@ -28,27 +29,27 @@ type Client struct {
 
 // Connect establishes a pooled connection to MongoDB and verifies reachability with Ping.
 func Connect(ctx context.Context, uri string, dbName string) (*Client, error) {
-	connectCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
 	opts := options.Client().
 		ApplyURI(uri).
 		SetMaxPoolSize(50).
 		SetMinPoolSize(5).
-		SetConnectTimeout(5 * time.Second).
-		SetServerSelectionTimeout(5 * time.Second)
+		SetConnectTimeout(10 * time.Second).
+		SetServerSelectionTimeout(10 * time.Second)
 
-	client, err := mongo.Connect(connectCtx, opts)
+	// Create a new client and connect to the server (mongo-driver v2 API)
+	client, err := mongo.Connect(opts)
 	if err != nil {
 		return nil, fmt.Errorf("mongo connect: %w", err)
 	}
 
-	pingCtx, pingCancel := context.WithTimeout(ctx, 5*time.Second)
+	// Send a ping to confirm a successful connection
+	pingCtx, pingCancel := context.WithTimeout(ctx, 10*time.Second)
 	defer pingCancel()
 	if err := client.Ping(pingCtx, readpref.Primary()); err != nil {
 		_ = client.Disconnect(context.Background())
 		return nil, fmt.Errorf("mongo ping: %w", err)
 	}
+	fmt.Println("Pinged your deployment. You successfully connected to MongoDB!")
 
 	return &Client{
 		raw: client,
@@ -73,4 +74,3 @@ func (c *Client) Disconnect(ctx context.Context) error {
 	}
 	return c.raw.Disconnect(ctx)
 }
-

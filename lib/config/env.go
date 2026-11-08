@@ -10,7 +10,9 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/caarlos0/env/v11"
@@ -22,8 +24,10 @@ type Config struct {
 	Port int    `env:"PORT" envDefault:"5000"`
 	Env  string `env:"ENV" envDefault:"development"`
 
-	MongoURI string `env:"MONGO_URI" envDefault:"mongodb://localhost:27017"`
-	MongoDB  string `env:"MONGO_DB" envDefault:"quickbite_analytics"`
+	MongoURI  string `env:"MONGO_URI" envDefault:"mongodb+srv://<db_username>:<db_password>@quickbite.nlf5hj9.mongodb.net/"`
+	MongoDB   string `env:"MONGO_DB" envDefault:"quickbite_analytics"`
+	MongoUser string `env:"MONGO_USER"`
+	MongoPass string `env:"MONGO_PASS"`
 
 	RabbitURL string `env:"RABBITMQ_URL" envDefault:"amqp://guest:guest@localhost:5672/"`
 
@@ -53,20 +57,51 @@ type Config struct {
 
 // Load reads .env (if present in working dir) into missing process env vars and parses Config via caarlos0/env/v11.
 func Load() (*Config, error) {
-	loadDotEnv(".env")
+	if err := loadDotEnv(".env"); err != nil {
+		return nil, fmt.Errorf("read .env: %w", err)
+	}
 
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+
+	// Dynamically interpolate <db_username> and <db_password> in MONGO_URI from MONGO_USER / MONGO_PASS
+	// (URL-escaping credentials so special characters in passwords never break URI parsing).
+	if cfg.MongoUser != "" {
+		escapedUser := url.QueryEscape(cfg.MongoUser)
+		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "<db_username>", escapedUser)
+		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "${MONGO_USER}", escapedUser)
+	}
+	if cfg.MongoPass != "" {
+		escapedPass := url.QueryEscape(cfg.MongoPass)
+		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "<db_password>", escapedPass)
+		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "${MONGO_PASS}", escapedPass)
+	}
+
 	return &cfg, nil
 }
 
-// loadDotEnv populates unset environment variables from a local .env file if it exists.
-func loadDotEnv(filename string) {
-	f, err := os.Open(filename)
+// loadDotEnv populates unset environment variables from a local .env file if it exists,
+// walking up parent directories if .env is not in the current working directory.
+//
+// TS vs Go Syntax Note (Iterator Error Checking):
+//   - `for scanner.Scan()` returns `false` both when it reaches EOF normally AND when a read I/O error
+//     (e.g., line exceeding buffer size or disk error) occurs.
+//   - Therefore, Go's `bufio.Scanner` (and `sql.Rows`) pattern requires checking `scanner.Err()`
+//     immediately after the loop exits to distinguish clean EOF (`nil`) from a read failure.
+func loadDotEnv(filename string) error {
+	path := findDotEnv(filename)
+	if path == "" {
+		return nil
+	}
+
+	f, err := os.Open(path)
 	if err != nil {
-		return
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
 	}
 	defer f.Close()
 
@@ -87,5 +122,27 @@ func loadDotEnv(filename string) {
 			_ = os.Setenv(key, val)
 		}
 	}
+
+	return scanner.Err()
+}
+
+// findDotEnv searches the current directory and up to 4 parent directories for filename.
+func findDotEnv(filename string) string {
+	dir, err := os.Getwd()
+	if err != nil {
+		return filename
+	}
+	for i := 0; i <= 4; i++ {
+		candidate := filepath.Join(dir, filename)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
 }
 

@@ -20,9 +20,9 @@ import (
 	"strings"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"quickbite/analytics-service/app/analytics"
 )
@@ -92,7 +92,7 @@ func (r *RestaurantDayRepo) UpsertOrderPlaced(
 		"$set":         setFields,
 		"$setOnInsert": setOnInsert,
 	}
-	_, err := r.coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	_, err := r.coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -133,6 +133,6 @@ func (r *RestaurantDayRepo) UpsertPaymentCompleted(
 			"delivery_ms_count": int64(0),
 		},
 	}
-	_, err := r.coll.UpdateOne(ctx, filter, update, options.Update().SetUpsert(true))
+	_, err := r.coll.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	return err
 }
