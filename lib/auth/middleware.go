@@ -10,6 +10,7 @@ package auth
 import (
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -121,11 +122,9 @@ func RequireBranchAccess(paramOrQueryName string, baseLog *slog.Logger) func(htt
 				return
 			}
 
-			for _, allowed := range claims.BranchIDs {
-				if allowed == branchID {
-					next.ServeHTTP(w, r)
-					return
-				}
+			if slices.Contains(claims.BranchIDs, branchID) {
+				next.ServeHTTP(w, r)
+				return
 			}
 			apperr.RenderError(w, r, baseLog, apperr.ErrForbidden.WithMessage("You do not have access to this branch"))
 		})
@@ -142,4 +141,3 @@ func extractToken(r *http.Request) string {
 	}
 	return ""
 }
-
