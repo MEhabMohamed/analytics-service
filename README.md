@@ -7,7 +7,7 @@ Go + MongoDB + RabbitMQ microservice that consumes domain events from `order-ser
 ## Prerequisites
 
 - **Go** 1.21+
-- **MongoDB** running on `mongodb+srv://<db_username>:<db_password>@quickbite.nlf5hj9.mongodb.net/`
+- **MongoDB** running on `mongodb://localhost:27017`
 - **RabbitMQ** running on `localhost:5672`
 
 ---

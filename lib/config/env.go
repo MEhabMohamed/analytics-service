@@ -10,7 +10,6 @@ package config
 import (
 	"bufio"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,10 +23,8 @@ type Config struct {
 	Port int    `env:"PORT" envDefault:"5000"`
 	Env  string `env:"ENV" envDefault:"development"`
 
-	MongoURI  string `env:"MONGO_URI" envDefault:"mongodb+srv://<db_username>:<db_password>@quickbite.nlf5hj9.mongodb.net/"`
-	MongoDB   string `env:"MONGO_DB" envDefault:"quickbite_analytics"`
-	MongoUser string `env:"MONGO_USER"`
-	MongoPass string `env:"MONGO_PASS"`
+	MongoURI string `env:"MONGO_URI" envDefault:"mongodb://localhost:27017"`
+	MongoDB  string `env:"MONGO_DB" envDefault:"quickbite_analytics"`
 
 	RabbitURL string `env:"RABBITMQ_URL" envDefault:"amqp://guest:guest@localhost:5672/"`
 
@@ -64,19 +61,6 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := env.Parse(&cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
-	}
-
-	// Dynamically interpolate <db_username> and <db_password> in MONGO_URI from MONGO_USER / MONGO_PASS
-	// (URL-escaping credentials so special characters in passwords never break URI parsing).
-	if cfg.MongoUser != "" {
-		escapedUser := url.QueryEscape(cfg.MongoUser)
-		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "<db_username>", escapedUser)
-		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "${MONGO_USER}", escapedUser)
-	}
-	if cfg.MongoPass != "" {
-		escapedPass := url.QueryEscape(cfg.MongoPass)
-		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "<db_password>", escapedPass)
-		cfg.MongoURI = strings.ReplaceAll(cfg.MongoURI, "${MONGO_PASS}", escapedPass)
 	}
 
 	return &cfg, nil
