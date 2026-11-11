@@ -1,0 +1,276 @@
+{
+  "info": {
+    "name": "QuickBite Analytics Service",
+    "_postman_id": "8e19b3d4-9e77-497a-a84f-quickbite5000",
+    "description": "Postman collection for QuickBite analytics-service (/api/v1/analytics). Authenticates via the access_token cookie or {{access_token}} variable populated automatically on login.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "coreBaseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "restaurantId",
+      "value": "42"
+    },
+    {
+      "key": "branchId",
+      "value": "7"
+    },
+    {
+      "key": "from",
+      "value": "2026-10-01"
+    },
+    {
+      "key": "to",
+      "value": "2026-10-31"
+    },
+    {
+      "key": "region",
+      "value": "eg"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Login via core-service (Extracts access_token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const res = pm.response.json();",
+              "const token = (res && res.data && res.data.accessToken) || pm.cookies.get('access_token');",
+              "if (token) {",
+              "    pm.collectionVariables.set('access_token', token);",
+              "    pm.environment.set('access_token', token);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"owner@example.com\",\n  \"password\": \"your_password\"\n}"
+        },
+        "url": {
+          "raw": "{{coreBaseUrl}}/api/auth/login",
+          "host": ["{{coreBaseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "1. Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Restaurant Analytics",
+      "item": [
+        {
+          "name": "Get Restaurant Daily Orders & Revenue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/restaurants/{{restaurantId}}/days?from={{from}}&to={{to}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "restaurants", "{{restaurantId}}", "days"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Restaurant Order Failures & Rate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/restaurants/{{restaurantId}}/failures?from={{from}}&to={{to}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "restaurants", "{{restaurantId}}", "failures"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Restaurant Average Delivery Time",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/restaurants/{{restaurantId}}/delivery-avg?from={{from}}&to={{to}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "restaurants", "{{restaurantId}}", "delivery-avg"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Branch Daily Rollups",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/restaurants/{{restaurantId}}/branches/days?from={{from}}&to={{to}}&branchId={{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "restaurants", "{{restaurantId}}", "branches", "days"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" },
+                { "key": "branchId", "value": "{{branchId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Top Selling Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/restaurants/{{restaurantId}}/products/top?from={{from}}&to={{to}}&branchId={{branchId}}&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "restaurants", "{{restaurantId}}", "products", "top"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" },
+                { "key": "branchId", "value": "{{branchId}}" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Platform Admin Analytics",
+      "item": [
+        {
+          "name": "Get Platform Daily Rollups (GMV & Commission)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/platform/days?from={{from}}&to={{to}}&region={{region}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "platform", "days"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" },
+                { "key": "region", "value": "{{region}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Active Restaurants Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/platform/active-restaurants?from={{from}}&to={{to}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "platform", "active-restaurants"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Platform Order & Payment Failures",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/platform/failures?from={{from}}&to={{to}}&region={{region}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "analytics", "platform", "failures"],
+              "query": [
+                { "key": "from", "value": "{{from}}" },
+                { "key": "to", "value": "{{to}}" },
+                { "key": "region", "value": "{{region}}" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

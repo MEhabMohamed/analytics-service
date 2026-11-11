@@ -18,9 +18,12 @@ func (c *Client) GetPermissionsByRole(ctx context.Context, role string) ([]strin
 	if err := c.getJSON(ctx, path, &env); err != nil {
 		return nil, err
 	}
-	if env.Data.Permissions == nil {
-		return []string{}, nil
+	out := make([]string, 0, len(env.Data.Permissions))
+	for _, p := range env.Data.Permissions {
+		if p.Permission != "" {
+			out = append(out, p.Permission)
+		}
 	}
-	return env.Data.Permissions, nil
+	return out, nil
 }
 

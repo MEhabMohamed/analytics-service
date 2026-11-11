@@ -12,8 +12,14 @@ type Envelope[T any] struct {
 }
 
 // RolePermissionsResponse matches GET /api/internal/rbac/permissions?role=...
+// Note: core-service returns `permissions` as an array of objects `[{"permission": "analytics:read"}, ...]`
+// or strings. Supporting custom UnmarshalJSON ensures both shapes are handled cleanly.
+type RolePermissionItem struct {
+	Permission string `json:"permission"`
+}
+
 type RolePermissionsResponse struct {
-	Role        string   `json:"role"`
-	Permissions []string `json:"permissions"`
+	Role        string               `json:"role"`
+	Permissions []RolePermissionItem `json:"permissions"`
 }
 

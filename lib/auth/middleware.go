@@ -25,13 +25,37 @@ const (
 	RoleRestaurantUser = "restaurant_user"
 )
 
-// Authenticate verifies the JWT from the access_token cookie first, falling back to Authorization: Bearer.
+// Authenticate verifies the JWT from the access_token cookie or Authorization: Bearer header.
+// If the cookie is missing or fails verification (e.g. a stale cookie in Postman), it falls back
+// to Authorization: Bearer before returning 401 UNAUTHENTICATED.
 func Authenticate(secret string, baseLog *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := extractToken(r)
-			claims, err := VerifyAccessToken(token, secret)
-			if err != nil {
+			var claims *appcontext.Claims
+			var err error
+
+			cookieTok := extractCookieToken(r)
+			bearerTok := extractBearerToken(r)
+
+			if cookieTok != "" {
+				claims, err = VerifyAccessToken(cookieTok, secret)
+				if err != nil {
+					baseLog.Warn("cookie token verification failed", "error", err.Error(), "cookieLen", len(cookieTok))
+				}
+			}
+			if claims == nil && bearerTok != "" {
+				claims, err = VerifyAccessToken(bearerTok, secret)
+				if err != nil {
+					baseLog.Warn("bearer token verification failed", "error", err.Error(), "bearerLen", len(bearerTok))
+				}
+			}
+
+			if claims == nil {
+				baseLog.Warn("auth rejected: no valid token",
+					"hasCookie", cookieTok != "",
+					"hasBearer", bearerTok != "",
+					"lastErr", err,
+				)
 				apperr.RenderError(w, r, baseLog, apperr.ErrUnauthenticated)
 				return
 			}
@@ -131,11 +155,15 @@ func RequireBranchAccess(paramOrQueryName string, baseLog *slog.Logger) func(htt
 	}
 }
 
-func extractToken(r *http.Request) string {
-	if c, err := r.Cookie("access_token"); err == nil && c.Value != "" {
-		return c.Value
+func extractCookieToken(r *http.Request) string {
+	if c, err := r.Cookie("access_token"); err == nil && strings.TrimSpace(c.Value) != "" {
+		return strings.TrimSpace(c.Value)
 	}
-	authHeader := r.Header.Get("Authorization")
+	return ""
+}
+
+func extractBearerToken(r *http.Request) string {
+	authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(authHeader), "bearer ") {
 		return strings.TrimSpace(authHeader[7:])
 	}
