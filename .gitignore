@@ -3,6 +3,7 @@ play/
 
 # Local environment config
 .env
+.env.test
 
 # Compiled binaries
 *.exe

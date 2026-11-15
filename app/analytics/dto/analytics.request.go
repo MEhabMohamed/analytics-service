@@ -92,6 +92,9 @@ func ParseRestaurantDateRange(r *http.Request) (analytics.DateRangeQuery, error)
 	if err := validate.Struct(req); err != nil {
 		return analytics.DateRangeQuery{}, analytics.ErrValidation.WithMessage("Query parameters 'from' and 'to' are required in YYYY-MM-DD format")
 	}
+	if req.From > req.To {
+		return analytics.DateRangeQuery{}, analytics.ErrValidation.WithMessage("'from' must be less than or equal to 'to'")
+	}
 
 	return analytics.DateRangeQuery{
 		RestaurantID: req.RestaurantID,
@@ -107,11 +110,14 @@ func ParsePlatformDateRange(r *http.Request) (analytics.DateRangeQuery, error) {
 	req := PlatformDateRangeRequest{
 		From:   strings.TrimSpace(r.URL.Query().Get("from")),
 		To:     strings.TrimSpace(r.URL.Query().Get("to")),
-		Region: strings.TrimSpace(r.URL.Query().Get("region")),
+		Region: strings.ToLower(strings.TrimSpace(r.URL.Query().Get("region"))),
 	}
 
 	if err := validate.Struct(req); err != nil {
 		return analytics.DateRangeQuery{}, analytics.ErrValidation.WithMessage("Query parameters 'from' and 'to' are required in YYYY-MM-DD format")
+	}
+	if req.From > req.To {
+		return analytics.DateRangeQuery{}, analytics.ErrValidation.WithMessage("'from' must be less than or equal to 'to'")
 	}
 
 	return analytics.DateRangeQuery{
