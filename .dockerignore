@@ -1,0 +1,42 @@
+# Anything matched here is NOT sent to the Docker build context.
+# Smaller context  =>  faster builds + smaller image layers.
+
+# Compiled binaries are built in the builder stage — never copy host binaries.
+bin
+dist
+*.exe
+api
+backfill-aggs
+
+# Local secrets must not bake into the image; pass them at runtime.
+.env
+.env.*
+!.env.example
+
+# IDE / editor cruft
+.idea
+.vscode
+*.iml
+
+# Git history isn't needed by the build.
+.git
+.gitignore
+
+# Logs, test artifacts, and OS junk
+*.log
+*.test
+*.out
+coverage.txt
+.DS_Store
+Thumbs.db
+
+# Throwaway scripts, docs, and tests
+play
+docs
+tests
+
+# Docker files themselves don't belong in the image
+dockerfile
+.dockerignore
+docker-compose.yml
+
