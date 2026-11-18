@@ -142,6 +142,20 @@ func TestAuthRBACAndValidationEnvelopes(t *testing.T) {
 		t.Fatalf("expected error code ANALYTICS_INVALID_DATE_RANGE, got %q", errEnv.Error.Code)
 	}
 
+	// 7b. Date range > 366 days -> 400 ANALYTICS_INVALID_DATE_RANGE
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/analytics/restaurants/42/days?from=2025-01-01&to=2026-01-03", nil)
+	req.Header.Set("Authorization", "Bearer "+ownerToken)
+	rec = httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for >366 day range, got %d", rec.Code)
+	}
+	errEnv.Error.Code = ""
+	_ = json.Unmarshal(rec.Body.Bytes(), &errEnv)
+	if errEnv.Error.Code != "ANALYTICS_INVALID_DATE_RANGE" {
+		t.Fatalf("expected error code ANALYTICS_INVALID_DATE_RANGE for >366 days, got %q", errEnv.Error.Code)
+	}
+
 	// 8. Verify RBAC cache invalidation on rbac.permissions_changed
 	callsBefore := fetcher.calls
 	_, _ = rbacCache.HasPermission(context.Background(), "owner", analytics.PermAnalyticsRead)

@@ -42,8 +42,8 @@ type Config struct {
 
 	RabbitPrefetch int `env:"RABBITMQ_PREFETCH" envDefault:"32"`
 
-	AccessSecret   string `env:"ACCESS_SECRET" envDefault:"my-access-secret"`
-	InternalAPIKey string `env:"INTERNAL_API_KEY" envDefault:"my-internal-api-key"`
+	AccessSecret   string `env:"ACCESS_SECRET,required"`
+	InternalAPIKey string `env:"INTERNAL_API_KEY,required"`
 
 	CoreServiceBaseURL string `env:"CORE_SERVICE_BASE_URL" envDefault:"http://localhost:3000"`
 	CoreInternalAPIKey string `env:"CORE_INTERNAL_API_KEY" envDefault:"my-internal-api-key"`

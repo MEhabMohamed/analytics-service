@@ -9,8 +9,8 @@ import (
 
 // GetPlatformDays returns daily platform-wide rollups with derived AvgOrderMinor and AvgDeliveryMs.
 func (s *Service) GetPlatformDays(ctx context.Context, q analytics.DateRangeQuery) ([]analytics.PlatformDayRow, error) {
-	if q.From > q.To {
-		return nil, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return nil, err
 	}
 
 	docs, err := s.platformRepo.FindByDateRange(ctx, q.From, q.To, q.Region)
@@ -52,8 +52,8 @@ func (s *Service) GetPlatformDays(ctx context.Context, q analytics.DateRangeQuer
 
 // GetActiveRestaurants derives daily and range-total active restaurants from agg_restaurant_day.
 func (s *Service) GetActiveRestaurants(ctx context.Context, q analytics.DateRangeQuery) (analytics.ActiveRestaurantsSummary, error) {
-	if q.From > q.To {
-		return analytics.ActiveRestaurantsSummary{}, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return analytics.ActiveRestaurantsSummary{}, err
 	}
 	total, days, err := s.restaurantRepo.AggregateActiveRestaurants(ctx, q.From, q.To)
 	if err != nil {
@@ -67,8 +67,8 @@ func (s *Service) GetActiveRestaurants(ctx context.Context, q analytics.DateRang
 
 // GetPlatformFailures derives daily and range-total order & payment failure metrics from agg_platform_day.
 func (s *Service) GetPlatformFailures(ctx context.Context, q analytics.DateRangeQuery) (analytics.PlatformFailuresSummary, error) {
-	if q.From > q.To {
-		return analytics.PlatformFailuresSummary{}, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return analytics.PlatformFailuresSummary{}, err
 	}
 
 	docs, err := s.platformRepo.FindByDateRange(ctx, q.From, q.To, q.Region)

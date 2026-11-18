@@ -13,6 +13,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	"quickbite/analytics-service/lib/logger"
 )
@@ -33,6 +34,22 @@ type errorEnvelope struct {
 // Wrap converts a HandlerFunc returning error into a standard http.HandlerFunc and renders the canonical error envelope.
 func Wrap(baseLog *slog.Logger, h HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				log := logger.FromContext(r.Context(), baseLog)
+				log.Error("panic recovered in handler",
+					"panic", rec,
+					"stack", string(debug.Stack()),
+					"path", r.URL.Path,
+					"method", r.Method,
+				)
+				RenderError(w, r, baseLog, ErrInternal)
+			}
+		}()
+
 		err := h(w, r)
 		if err == nil {
 			return

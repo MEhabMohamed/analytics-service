@@ -9,8 +9,8 @@ import (
 
 // GetRestaurantDays returns daily order/revenue rollups for a restaurant with derived AvgOrderMinor.
 func (s *Service) GetRestaurantDays(ctx context.Context, q analytics.DateRangeQuery) ([]analytics.RestaurantDayRow, error) {
-	if q.From > q.To {
-		return nil, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return nil, err
 	}
 
 	docs, err := s.restaurantRepo.FindByRestaurantAndDateRange(ctx, q.RestaurantID, q.From, q.To)
@@ -37,8 +37,8 @@ func (s *Service) GetRestaurantDays(ctx context.Context, q analytics.DateRangeQu
 
 // GetRestaurantFailures derives daily and overall failure rates from agg_restaurant_day (no extra collection needed).
 func (s *Service) GetRestaurantFailures(ctx context.Context, q analytics.DateRangeQuery) (analytics.RestaurantFailuresSummary, error) {
-	if q.From > q.To {
-		return analytics.RestaurantFailuresSummary{}, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return analytics.RestaurantFailuresSummary{}, err
 	}
 
 	docs, err := s.restaurantRepo.FindByRestaurantAndDateRange(ctx, q.RestaurantID, q.From, q.To)
@@ -77,8 +77,8 @@ func (s *Service) GetRestaurantFailures(ctx context.Context, q analytics.DateRan
 
 // GetRestaurantDeliveryAvg derives daily and overall average delivery times from agg_restaurant_day (delivery_ms_sum / delivery_ms_count).
 func (s *Service) GetRestaurantDeliveryAvg(ctx context.Context, q analytics.DateRangeQuery) (analytics.RestaurantDeliveryAvgSummary, error) {
-	if q.From > q.To {
-		return analytics.RestaurantDeliveryAvgSummary{}, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return analytics.RestaurantDeliveryAvgSummary{}, err
 	}
 
 	docs, err := s.restaurantRepo.FindByRestaurantAndDateRange(ctx, q.RestaurantID, q.From, q.To)
@@ -118,8 +118,8 @@ func (s *Service) GetRestaurantDeliveryAvg(ctx context.Context, q analytics.Date
 
 // GetBranchDays returns daily rollups per branch for a restaurant (or a single branch) with derived averages.
 func (s *Service) GetBranchDays(ctx context.Context, q analytics.DateRangeQuery) ([]analytics.BranchDayRow, error) {
-	if q.From > q.To {
-		return nil, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return nil, err
 	}
 
 	docs, err := s.branchRepo.FindByRestaurantAndDateRange(ctx, q.RestaurantID, q.BranchID, q.From, q.To)
@@ -156,8 +156,8 @@ func (s *Service) GetBranchDays(ctx context.Context, q analytics.DateRangeQuery)
 
 // GetTopProducts returns the top N products by revenue across [from, to] for a restaurant (or branch).
 func (s *Service) GetTopProducts(ctx context.Context, q analytics.DateRangeQuery) ([]analytics.TopProductRow, error) {
-	if q.From > q.To {
-		return nil, analytics.ErrInvalidDateRange
+	if err := validateRange(q.From, q.To); err != nil {
+		return nil, err
 	}
 	return s.productRepo.FindTopProducts(ctx, q.RestaurantID, q.BranchID, q.From, q.To, q.Limit)
 }

@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"quickbite/analytics-service/app/analytics"
 	"quickbite/analytics-service/app/analytics/repository"
 )
 
@@ -45,6 +46,23 @@ func New(
 }
 
 // ─── Package-Private Helpers (shared across service/*.go) ────────────────────
+
+const maxDateRangeDays = 366
+
+func validateRange(from, to string) error {
+	if from > to {
+		return analytics.ErrInvalidDateRange
+	}
+	f, err1 := time.Parse("2006-01-02", from)
+	t, err2 := time.Parse("2006-01-02", to)
+	if err1 != nil || err2 != nil {
+		return analytics.ErrInvalidDateRange
+	}
+	if int(t.Sub(f).Hours()/24) > maxDateRangeDays {
+		return analytics.ErrInvalidDateRange.WithMessage("date range cannot exceed 366 days")
+	}
+	return nil
+}
 
 func extractUTCDate(iso string) string {
 	trimmed := strings.TrimSpace(iso)

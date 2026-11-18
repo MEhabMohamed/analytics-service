@@ -14,12 +14,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 
 	"quickbite/analytics-service/app/analytics/controller"
 	"quickbite/analytics-service/app/analytics/eventhandlers"
@@ -86,53 +88,39 @@ func Run() error {
 	coreClient := coreclient.New(cfg.CoreServiceBaseURL, cfg.CoreInternalAPIKey)
 	rbacCache := rbac.NewCache(coreClient, time.Duration(cfg.RBACCacheTTLSec)*time.Second)
 
-	// 4. Connect RabbitMQ & start consumers (order.events + core.events)
+	// 4. Connect RabbitMQ & start consumers (order.events + core.events); non-fatal at boot with background retry
 	broker := messaging.NewAMQPBroker(cfg.RabbitURL)
-	if err := broker.Connect(ctx); err != nil {
-		log.Error("rabbit connection failed", "error", err.Error())
-		return err
-	}
 	defer func() {
 		_ = broker.Close()
 	}()
-	log.Info("rabbit connected")
 
-	// 4a. Order/payment events consumer (`order.events` exchange)
 	orderConsumer := coreevents.NewConsumer(broker, eventIDsRepo, log)
 	eventhandlers.RegisterOrderEventHandlers(orderConsumer, analyticsSvc)
-	if err := orderConsumer.Start(ctx, messaging.Topology{
+	orderTop := messaging.Topology{
 		Exchange:           cfg.OrderEventsExchange,
 		Queue:              cfg.OrderEventsQueue,
 		BindingKeys:        cfg.OrderEventsBindings,
 		DeadLetterExchange: cfg.OrderEventsDLX,
 		DeadLetterQueue:    cfg.OrderEventsDLQ,
 		Prefetch:           cfg.RabbitPrefetch,
-	}); err != nil {
-		log.Error("failed to start order events consumer", "error", err.Error())
-		return err
 	}
 
-	// 4b. Core RBAC invalidation consumer (`core.events` exchange)
 	coreConsumer := coreevents.NewConsumer(broker, eventIDsRepo, log)
 	eventhandlers.RegisterCoreEventHandlers(coreConsumer, rbacCache, log)
-	if err := coreConsumer.Start(ctx, messaging.Topology{
+	coreTop := messaging.Topology{
 		Exchange:           cfg.CoreEventsExchange,
 		Queue:              cfg.CoreEventsQueue,
 		BindingKeys:        cfg.CoreEventsBindings,
 		DeadLetterExchange: cfg.CoreEventsDLX,
 		DeadLetterQueue:    cfg.CoreEventsDLQ,
 		Prefetch:           cfg.RabbitPrefetch,
-	}); err != nil {
-		log.Error("failed to start core events consumer", "error", err.Error())
-		return err
 	}
-	log.Info("event consumer started",
-		"orderQueue", cfg.OrderEventsQueue,
-		"coreQueue", cfg.CoreEventsQueue,
-	)
+
+	startMessaging(ctx, log, broker, orderConsumer, orderTop, coreConsumer, coreTop)
 
 	// 5. Build Chi HTTP router & mount routes
 	r := chi.NewRouter()
+	r.Use(chimw.Recoverer)
 	r.Use(middleware.Correlation)
 	r.Use(middleware.AccessLog(log))
 
@@ -179,5 +167,70 @@ func Run() error {
 	shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutCtx)
+}
+
+func startMessaging(
+	ctx context.Context,
+	log *slog.Logger,
+	broker *messaging.AMQPBroker,
+	orderConsumer *coreevents.Consumer,
+	orderTop messaging.Topology,
+	coreConsumer *coreevents.Consumer,
+	coreTop messaging.Topology,
+) {
+	tryStart := func(orderStarted, coreStarted *bool) error {
+		if err := broker.Connect(ctx); err != nil {
+			return fmt.Errorf("rabbit connect: %w", err)
+		}
+		if !*orderStarted {
+			if err := orderConsumer.Start(ctx, orderTop); err != nil {
+				return fmt.Errorf("start order events consumer: %w", err)
+			}
+			*orderStarted = true
+		}
+		if !*coreStarted {
+			if err := coreConsumer.Start(ctx, coreTop); err != nil {
+				return fmt.Errorf("start core events consumer: %w", err)
+			}
+			*coreStarted = true
+		}
+		return nil
+	}
+
+	var orderStarted, coreStarted bool
+	if err := tryStart(&orderStarted, &coreStarted); err == nil {
+		log.Info("rabbit connected and event consumers started",
+			"orderQueue", orderTop.Queue,
+			"coreQueue", coreTop.Queue,
+		)
+		return
+	} else {
+		log.Warn("rabbit not reachable at boot, will retry in background", "error", err.Error())
+	}
+
+	go func() {
+		delay := 2 * time.Second
+		const maxDelay = 30 * time.Second
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(delay):
+			}
+			if err := tryStart(&orderStarted, &coreStarted); err == nil {
+				log.Info("rabbit connected and event consumers started",
+					"orderQueue", orderTop.Queue,
+					"coreQueue", coreTop.Queue,
+				)
+				return
+			} else {
+				log.Warn("rabbit reconnect attempt failed", "error", err.Error(), "retryIn", delay.String())
+			}
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+		}
+	}()
 }
 
